@@ -1,280 +1,261 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title>Zendesk Dashboard</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="refresh" content="300" />
+    <title>Zendesk Support Dashboard</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       body {
-        font-family: "Arial", sans-serif;
-        margin: 0;
+        background-color: #121212;
+        color: #e0e0e0;
+        font-family: "Roboto", sans-serif;
+      }
+      .dashboard-card {
+        background-color: #1e1e1e;
+        border: 1px solid #333;
+        border-radius: 8px;
         padding: 20px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-      }
-
-      .dashboard {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 20px;
-        max-width: 1200px;
-        margin: 0 auto;
-      }
-
-      .metric-card {
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        border-radius: 15px;
-        padding: 30px;
+        margin-bottom: 20px;
         text-align: center;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        transition: transform 0.3s ease;
       }
-
-      .metric-card:hover {
-        transform: translateY(-5px);
-      }
-
-      .metric-title {
-        font-size: 18px;
+      .dashboard-card h3 {
+        font-size: 1.5rem;
+        color: #bb86fc;
         margin-bottom: 15px;
-        opacity: 0.9;
-        text-transform: uppercase;
-        letter-spacing: 1px;
       }
-
-      .metric-value {
-        font-size: 48px;
-        font-weight: bold;
-        margin-bottom: 10px;
+      .metric {
+        font-size: 3.5rem;
+        font-weight: 700;
         color: #fff;
       }
-
-      .metric-subtitle {
-        font-size: 14px;
-        opacity: 0.7;
+      #last-updated {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 0.8rem;
+        color: #666;
       }
-
-      .loading {
-        text-align: center;
-        padding: 50px;
-        font-size: 24px;
+      .list-group-item {
+        background-color: #2a2a2a;
+        color: #e0e0e0;
+        border-color: #333;
       }
-
-      .error {
-        background: rgba(255, 0, 0, 0.2);
-        color: #ffcccc;
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
-        margin: 20px 0;
-      }
-
-      .last-updated {
-        text-align: center;
-        margin-top: 30px;
-        opacity: 0.7;
-        font-size: 14px;
+      .list-group-item strong {
+        color: #03dac6;
       }
     </style>
   </head>
   <body>
-    <div class="loading" id="loading">Loading Zendesk Data...</div>
-    <div class="dashboard" id="dashboard" style="display: none">
-      <!-- Dashboard content will be populated here -->
+    <div class="container-fluid p-4">
+      <div id="last-updated"></div>
+      <div class="row">
+        <div class="col-12 text-center mb-4">
+          <h1 style="color: #bb86fc">Live Support Dashboard</h1>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-3 col-6">
+          <div class="dashboard-card">
+            <h3>New Tickets</h3>
+            <p id="new-tickets" class="metric">...</p>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="dashboard-card">
+            <h3>Open Tickets</h3>
+            <p id="open-tickets" class="metric">...</p>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="dashboard-card">
+            <h3>Urgent Tickets</h3>
+            <p id="urgent-tickets" class="metric">...</p>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="dashboard-card">
+            <h3>Solved Today</h3>
+            <p id="solved-today" class="metric">...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mt-4">
+        <div class="col-md-6">
+          <div class="dashboard-card">
+            <h3>Oldest Open Tickets (5+)</h3>
+            <ul id="aging-tickets" class="list-group text-start">
+              <li class="list-group-item">Loading...</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="dashboard-card">
+            <h3>Active Agents (Recent Updates)</h3>
+            <ul id="active-agents" class="list-group text-start">
+              <li class="list-group-item">Loading...</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="last-updated" id="lastUpdated"></div>
 
     <script>
-      // Configuration - Replace with your actual values
-      const ZENDESK_CONFIG = {
-        domain: "yourcompany.zendesk.com",
-        email: "your-email@company.com",
-        apiToken: "your-api-token", // Store securely in production
-      };
-
-      // Create authorization header
-      const getAuthHeaders = () => {
-        const credentials = btoa(
-          `${ZENDESK_CONFIG.email}/token:${ZENDESK_CONFIG.apiToken}`
-        );
-        return {
-          Authorization: `Basic ${credentials}`,
-          "Content-Type": "application/json",
-        };
-      };
-
-      // Async function to fetch open tickets
-      async function getOpenTickets() {
-        try {
-          const response = await fetch(
-            `https://${ZENDESK_CONFIG.domain}/api/v2/search.json?query=type:ticket status:open`,
-            { headers: getAuthHeaders() }
-          );
-
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-
-          const data = await response.json();
-          return data.count || 0;
-        } catch (error) {
-          console.error("Error fetching open tickets:", error);
-          return "Error";
-        }
-      }
-
-      // Async function to fetch urgent tickets
-      async function getUrgentTickets() {
-        try {
-          const response = await fetch(
-            `https://${ZENDESK_CONFIG.domain}/api/v2/search.json?query=type:ticket priority:urgent status<solved`,
-            { headers: getAuthHeaders() }
-          );
-
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-
-          const data = await response.json();
-          return data.count || 0;
-        } catch (error) {
-          console.error("Error fetching urgent tickets:", error);
-          return "Error";
-        }
-      }
-
-      // Async function to fetch tickets solved today
-      async function getTicketsSolvedToday() {
-        try {
-          const today = new Date().toISOString().split("T")[0];
-          const response = await fetch(
-            `https://${ZENDESK_CONFIG.domain}/api/v2/search.json?query=type:ticket status:solved created>${today}`,
-            { headers: getAuthHeaders() }
-          );
-
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-
-          const data = await response.json();
-          return data.count || 0;
-        } catch (error) {
-          console.error("Error fetching solved tickets:", error);
-          return "Error";
-        }
-      }
-
-      // Async function to get agent statistics
-      async function getAgentStats() {
-        try {
-          const response = await fetch(
-            `https://${ZENDESK_CONFIG.domain}/api/v2/users.json?role=agent`,
-            { headers: getAuthHeaders() }
-          );
-
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-
-          const data = await response.json();
-          const activeAgents = data.users.filter((user) => user.active).length;
-          return activeAgents || 0;
-        } catch (error) {
-          console.error("Error fetching agent stats:", error);
-          return "Error";
-        }
-      }
-
-      // Main async function to update the dashboard
-      async function updateDashboard() {
-        const loadingElement = document.getElementById("loading");
-        const dashboardElement = document.getElementById("dashboard");
-        const lastUpdatedElement = document.getElementById("lastUpdated");
-
-        try {
-          // Show loading state
-          loadingElement.style.display = "block";
-          dashboardElement.style.display = "none";
-
-          // Fetch all data concurrently using Promise.all
-          console.log("Fetching Zendesk data...");
-          const [openTickets, urgentTickets, solvedToday, activeAgents] =
-            await Promise.all([
-              getOpenTickets(),
-              getUrgentTickets(),
-              getTicketsSolvedToday(),
-              getAgentStats(),
-            ]);
-
-          // Update dashboard HTML
-          dashboardElement.innerHTML = `
-                    <div class="metric-card">
-                        <div class="metric-title">Open Tickets</div>
-                        <div class="metric-value">${openTickets}</div>
-                        <div class="metric-subtitle">Awaiting Response</div>
-                    </div>
-                    
-                    <div class="metric-card">
-                        <div class="metric-title">Urgent Tickets</div>
-                        <div class="metric-value">${urgentTickets}</div>
-                        <div class="metric-subtitle">Needs Immediate Attention</div>
-                    </div>
-                    
-                    <div class="metric-card">
-                        <div class="metric-title">Solved Today</div>
-                        <div class="metric-value">${solvedToday}</div>
-                        <div class="metric-subtitle">Tickets Resolved</div>
-                    </div>
-                    
-                    <div class="metric-card">
-                        <div class="metric-title">Active Agents</div>
-                        <div class="metric-value">${activeAgents}</div>
-                        <div class="metric-subtitle">Available Support Staff</div>
-                    </div>
-                `;
-
-          // Update last updated time
-          const now = new Date();
-          lastUpdatedElement.textContent = `Last updated: ${now.toLocaleTimeString()}`;
-
-          // Hide loading, show dashboard
-          loadingElement.style.display = "none";
-          dashboardElement.style.display = "grid";
-
-          console.log("Dashboard updated successfully");
-        } catch (error) {
-          console.error("Failed to update dashboard:", error);
-
-          // Show error state
-          dashboardElement.innerHTML = `
-                    <div class="error">
-                        <h3>Unable to Load Dashboard</h3>
-                        <p>Error: ${error.message}</p>
-                        <p>Check console for more details.</p>
-                    </div>
-                `;
-
-          loadingElement.style.display = "none";
-          dashboardElement.style.display = "block";
-        }
-      }
-
-      // Initialize dashboard when page loads
       document.addEventListener("DOMContentLoaded", function () {
-        console.log("Page loaded, initializing dashboard...");
+        // Helper function to fetch data from our SECURE Vercel proxy
+        async function fetchFromProxy(zendeskEndpoint) {
+          try {
+            // We pass the target Zendesk endpoint as a URL parameter to our proxy
+            const response = await fetch(
+              `/api/zendesk?endpoint=${encodeURIComponent(zendeskEndpoint)}`
+            );
+            if (!response.ok) {
+              console.error(
+                `Error fetching from proxy for ${zendeskEndpoint}: ${response.statusText}`
+              );
+              return null;
+            }
+            return await response.json();
+          } catch (error) {
+            console.error("Network or CORS error:", error);
+            return null;
+          }
+        }
 
-        // Initial load
-        updateDashboard();
+        function getTodayDateString() {
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, "0");
+          const day = String(today.getDate()).padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        }
 
-        // Auto-refresh every 5 minutes (300,000 milliseconds)
-        setInterval(updateDashboard, 300000);
+        // --- METRIC FETCHING FUNCTIONS (Now using the proxy) ---
 
-        console.log("Dashboard initialized with 5-minute refresh interval");
+        async function getTicketCounts() {
+          const newData = await fetchFromProxy(
+            "search.json?query=type:ticket status:new"
+          );
+          const openData = await fetchFromProxy(
+            "search.json?query=type:ticket status<solved"
+          );
+          const urgentData = await fetchFromProxy(
+            "search.json?query=type:ticket status<solved priority:urgent"
+          );
+
+          document.getElementById("new-tickets").textContent = newData
+            ? newData.count
+            : "Error";
+          document.getElementById("open-tickets").textContent = openData
+            ? openData.count
+            : "Error";
+          document.getElementById("urgent-tickets").textContent = urgentData
+            ? urgentData.count
+            : "Error";
+        }
+
+        async function getSolvedTodayCount() {
+          const today = getTodayDateString();
+          const data = await fetchFromProxy(
+            `search.json?query=type:ticket status:solved solved>=${today}`
+          );
+          document.getElementById("solved-today").textContent = data
+            ? data.count
+            : "Error";
+        }
+
+        async function getAgingTickets() {
+          const data = await fetchFromProxy(
+            "search.json?query=type:ticket status:open order_by:created_at sort:asc&per_page=5"
+          );
+          const listElement = document.getElementById("aging-tickets");
+          listElement.innerHTML = "";
+
+          if (data && data.results.length > 0) {
+            data.results.forEach((ticket) => {
+              const daysOld = Math.floor(
+                (new Date() - new Date(ticket.created_at)) /
+                  (1000 * 60 * 60 * 24)
+              );
+              const listItem = document.createElement("li");
+              listItem.className = "list-group-item";
+              listItem.innerHTML = `<strong>#${
+                ticket.id
+              }</strong> - ${ticket.subject.substring(
+                0,
+                40
+              )}... <em>(${daysOld} days old)</em>`;
+              listElement.appendChild(listItem);
+            });
+          } else {
+            listElement.innerHTML =
+              '<li class="list-group-item">No aging tickets found.</li>';
+          }
+        }
+
+        async function getActiveAgents() {
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const data = await fetchFromProxy(
+            `search.json?query=type:ticket status>new updated>=${
+              yesterday.toISOString().split("T")[0]
+            }&per_page=100`
+          );
+          const listElement = document.getElementById("active-agents");
+          listElement.innerHTML = "";
+
+          if (data && data.results.length > 0) {
+            const agentIds = [
+              ...new Set(
+                data.results
+                  .map((ticket) => ticket.assignee_id)
+                  .filter((id) => id != null)
+              ),
+            ];
+            if (agentIds.length > 0) {
+              const usersData = await fetchFromProxy(
+                `users/show_many.json?ids=${agentIds.join(",")}`
+              );
+              if (usersData) {
+                usersData.users.forEach((user) => {
+                  const listItem = document.createElement("li");
+                  listItem.className = "list-group-item";
+                  listItem.textContent = user.name;
+                  listElement.appendChild(listItem);
+                });
+              }
+            } else {
+              listElement.innerHTML =
+                '<li class="list-group-item">No agents with recent activity.</li>';
+            }
+          } else {
+            listElement.innerHTML =
+              '<li class="list-group-item">No recent ticket activity.</li>';
+          }
+        }
+
+        function updateAllMetrics() {
+          getTicketCounts();
+          getSolvedTodayCount();
+          getAgingTickets();
+          getActiveAgents();
+          document.getElementById(
+            "last-updated"
+          ).textContent = `Last Updated: ${new Date().toLocaleTimeString()}`;
+        }
+
+        updateAllMetrics();
       });
-
-      // Optional: Manual refresh function (you can call this from browser console)
-      window.refreshDashboard = updateDashboard;
     </script>
   </body>
 </html>
